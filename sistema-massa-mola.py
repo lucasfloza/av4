@@ -11,6 +11,7 @@ class Parametros:
     velo: float = 2.0
     slider_range_mass: tuple = (1.0, 15.0)
     slider_range_amp: tuple = (0.2, 0.3)
+    slider_range_k: tuple = (1, 5.0)
 
     def __post_init__(self):
         if self.masses is None:
@@ -91,6 +92,24 @@ class SistemaMassaMola:
             sl.visible = False; txt.visible = False
         self.ui_sliders.clear(); self.ui_texts.clear()
 
+    def _slider_scalar(self, label, color_val, attr, value, rng, desc):
+        # slider para valor escalar (como k)
+        scene.append_to_caption(f'<b>{label}:</b> ')
+        txt = wtext(text=f'{value:.2f}')
+        step = (rng[1] - rng[0]) / 100
+        def on_slide(s):
+            setattr(self.params, attr, s.value)
+            txt.text = f'{s.value:.2f}'
+            self._build_system()
+            self._update_modes()
+        sl = slider(min=rng[0], max=rng[1], value=value, step=step, length=200,
+                    color=color_val, bind=on_slide)
+        scene.append_to_caption(' ', sl, ' ', txt, '<br>')
+        scene.append_to_caption(f'<i>{desc}</i><br><br>')
+        self.ui_sliders.append(sl)
+        self.ui_texts.append(txt)
+
+
     def _slider_factory(self, label, color_val, attr, index, desc, rng):
         # cria bolinha com cor da esfera
         sc = self.spheres[index].color
@@ -119,6 +138,17 @@ class SistemaMassaMola:
     def _create_ui(self):
         self._clear_ui()
         scene.append_to_caption('<hr>')
+        
+        # slider da constante elástica k
+        self._slider_scalar(
+            '🟢 Constante da Mola k',
+            color.green,
+            'k',
+            self.params.k,
+            self.params.slider_range_k,
+            'Ajusta a constante elástica k das molas.'
+        )
+
         for i in range(len(self.params.masses)):
             self._slider_factory('Massa', color.red, 'masses', i,
                                   f'Ajusta massa {i+1} (kg) e raio.', self.params.slider_range_mass)
