@@ -9,9 +9,9 @@ class Parametros:
     amplitudes: list = None
     phases: list = None
     velo: float = 2.0
+    slider_range_k: tuple = (0.1, 5.0)
     slider_range_mass: tuple = (1.0, 15.0)
     slider_range_amp: tuple = (0.2, 0.3)
-    slider_range_k: tuple = (1, 5.0)
 
     def __post_init__(self):
         if self.masses is None:
@@ -74,17 +74,15 @@ class SistemaMassaMola:
 
         for i, mass in enumerate(self.params.masses):
             x = self.equilibrium[i]
-            s = sphere(pos=vector(x, 0, 0), radius=0.1 * mass**(1/3), color=vector(i/n, 0, 1-i/n))
+            color_sphere = vector(i/n, 0, 1-i/n)
+            s = sphere(pos=vector(x, 0, 0), radius=0.1 * mass**(1/3), color=color_sphere)
             self.spheres.append(s)
             start = self.left_wall.pos + vector(0.05, 0, 0) if i == 0 else self.spheres[i-1].pos
             spring = helix(pos=start, axis=s.pos - start, radius=0.05)
             self.springs.append(spring)
-
         last = self.spheres[-1]
-        end_spring = helix(pos=last.pos,
-                           axis=self.right_wall.pos - vector(0.05, 0, 0) - last.pos,
-                           radius=0.05)
-        self.springs.append(end_spring)
+        end_axis = self.right_wall.pos - vector(0.05, 0, 0) - last.pos
+        self.springs.append(helix(pos=last.pos, axis=end_axis, radius=0.05))
 
     def _clear_ui(self):
         scene.caption = ''
@@ -93,68 +91,58 @@ class SistemaMassaMola:
         self.ui_sliders.clear(); self.ui_texts.clear()
 
     def _slider_scalar(self, label, color_val, attr, value, rng, desc):
-        # slider para valor escalar (como k)
         scene.append_to_caption(f'<b>{label}:</b> ')
         txt = wtext(text=f'{value:.2f}')
         step = (rng[1] - rng[0]) / 100
         def on_slide(s):
             setattr(self.params, attr, s.value)
             txt.text = f'{s.value:.2f}'
-            self._build_system()
-            self._update_modes()
-        sl = slider(min=rng[0], max=rng[1], value=value, step=step, length=200,
-                    color=color_val, bind=on_slide)
+            self._build_system(); self._update_modes()
+        sl = slider(min=rng[0], max=rng[1], value=value, step=step,
+                    length=200, color=color_val, bind=on_slide)
         scene.append_to_caption(' ', sl, ' ', txt, '<br>')
         scene.append_to_caption(f'<i>{desc}</i><br><br>')
-        self.ui_sliders.append(sl)
-        self.ui_texts.append(txt)
-
+        self.ui_sliders.append(sl); self.ui_texts.append(txt)
 
     def _slider_factory(self, label, color_val, attr, index, desc, rng):
-        # cria bolinha com cor da esfera
-        sc = self.spheres[index].color
-        r, g, b = int(sc.x*255), int(sc.y*255), int(sc.z*255)
-        dot_html = f'<span style="display:inline-block;width:10px;height:10px;background-color:rgb({r},{g},{b});border-radius:50%;margin-right:4px;"></span>'
-        # label
-        scene.append_to_caption(dot_html + f'<b>{label} {index+1}:</b> ')
-        # texto valor
+        col = self.spheres[index].color
+        r, g, b = int(col.x*255), int(col.y*255), int(col.z*255)
+        dot = f"<span style='display:inline-block;width:10px;height:10px;background:rgb({r},{g},{b});border-radius:50%;margin-right:4px;'></span>"
+        scene.append_to_caption(dot + f'<b>{label} {index+1}:</b> ')
         txt = wtext(text=f'{self.params.__dict__[attr][index]:.2f}')
-        # passo de 1%
         step = (rng[1] - rng[0]) / 100
         def on_slide(s):
             val = s.value
             self.params.__dict__[attr][index] = val
             txt.text = f'{val:.2f}'
-            if attr == 'masses':
-                self._build_system()
+            if attr == 'masses': self._build_system()
             self._update_modes()
         sl = slider(min=rng[0], max=rng[1], value=self.params.__dict__[attr][index],
                     step=step, length=200, color=color_val, bind=on_slide)
         scene.append_to_caption(' ', sl, ' ', txt, '<br>')
         scene.append_to_caption(f'<i>{desc}</i><br><br>')
-        self.ui_sliders.append(sl)
-        self.ui_texts.append(txt)
+        self.ui_sliders.append(sl); self.ui_texts.append(txt)
 
     def _create_ui(self):
-        self._clear_ui()
-        scene.append_to_caption('<hr>')
-        
-        # slider da constante elástica k
+        self._clear_ui(); scene.append_to_caption('<hr>')
+        # slider de k
         self._slider_scalar(
-            '🟢 Constante da Mola k',
-            color.green,
-            'k',
-            self.params.k,
-            self.params.slider_range_k,
-            'Ajusta a constante elástica k das molas.'
+            '🟢 Constante da Mola k', color.green, 'k', self.params.k,
+            self.params.slider_range_k, 'Ajusta a constante elástica k das molas.'
         )
-
+        # painel por esfera
         for i in range(len(self.params.masses)):
-            self._slider_factory('Massa', color.red, 'masses', i,
+            scene.append_to_caption(
+                "<div style='border:1px solid #ccc;padding:8px;border-radius:6px;margin:6px 0;background:#f7f7f7;'>"
+            )
+            col = self.spheres[i].color; r, g, b = int(col.x*255), int(col.y*255), int(col.z*255)
+            dot = f"<span style='width:12px;height:12px;background:rgb({r},{g},{b});border-radius:50%;display:inline-block;margin-right:6px;'></span>"
+            scene.append_to_caption(dot + f'<b>Esfera {i+1}</b><br>')
+            self._slider_factory('Massa', self.spheres[i].color, 'masses', i,
                                   f'Ajusta massa {i+1} (kg) e raio.', self.params.slider_range_mass)
-        for i in range(len(self.params.amplitudes)):
-            self._slider_factory('Amplitude', color.blue, 'amplitudes', i,
+            self._slider_factory('Amplitude', self.spheres[i].color, 'amplitudes', i,
                                   f'Ajusta amplitude do modo {i+1}.', self.params.slider_range_amp)
+            scene.append_to_caption('</div>')
         if len(self.params.masses) < self.MAX_MASSES:
             button(text='➕ Adicionar Massa', bind=lambda _: self._add_mass())
         button(text='🔄 Resetar Sistema', bind=lambda _: self._reset_system())
@@ -162,24 +150,18 @@ class SistemaMassaMola:
         self.info_texto = wtext(text='')
 
     def _add_mass(self):
-        if len(self.params.masses) >= self.MAX_MASSES:
-            return
-        self.params.masses.append(1.0)
-        self.params.amplitudes.append(0.2)
-        self.params.phases.append(0.0)
+        if len(self.params.masses) >= self.MAX_MASSES: return
+        self.params.masses.append(1.0); self.params.amplitudes.append(0.2); self.params.phases.append(0.0)
         self._build_system(); self._create_ui(); self._update_modes()
 
     def _reset_system(self):
-        self.params.masses = [1.0, 1.0]
-        self.params.amplitudes = [0.2, 0.2]
-        self.params.phases = [0.0, 0.0]
+        self.params.masses = [1.0, 1.0]; self.params.amplitudes = [0.2, 0.2]; self.params.phases = [0.0, 0.0]
         self._build_system(); self._create_ui(); self._update_modes()
 
     def _update_modes(self):
-        self.calcular_frequencias_modos()
-        freqs, modos = self.freqs, self.modos
-        txt = '<b>Frequências (rad/s):</b><br>' + ''.join(
-            f'ω{i+1}={freq:.3f}<br>' for i, freq in enumerate(freqs))
+        self.calcular_frequencias_modos(); freqs, modos = self.freqs, self.modos
+        txt = '<b>Frequências (rad/s):</b><br>' + ''.join(f'ω{i+1}={freq:.3f}<br>'
+              for i, freq in enumerate(freqs))
         txt += '<br><b>Modos Normais:</b><br>' + ''.join(
             f'Modo {j+1}:[{" ,".join(f"{m:.2f}" for m in modos[:,j])}]<br>'
             for j in range(len(freqs)))
@@ -195,12 +177,9 @@ class SistemaMassaMola:
             for i, s in enumerate(self.spheres):
                 s.pos.x = self.equilibrium[i] + disp[i]
                 start = self.left_wall.pos + vector(0.05, 0, 0) if i == 0 else self.spheres[i-1].pos
-                sp = self.springs[i]
-                sp.pos = start; sp.axis = s.pos - start
-            last = self.spheres[-1]
-            sp_last = self.springs[-1]
-            sp_last.pos = last.pos
-            sp_last.axis = self.right_wall.pos - vector(0.05, 0, 0) - last.pos
+                sp = self.springs[i]; sp.pos = start; sp.axis = s.pos - start
+            last = self.spheres[-1]; sp_last = self.springs[-1]
+            sp_last.pos = last.pos; sp_last.axis = self.right_wall.pos - vector(0.05, 0, 0) - last.pos
             t += dt
 
 if __name__ == '__main__':
