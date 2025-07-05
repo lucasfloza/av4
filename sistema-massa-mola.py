@@ -55,7 +55,7 @@ class SistemaMassaMola:
         self.modos = v[:, idx]
 
     def _setup_scene(self):
-        scene.title = "💠 Sistema Massa-Mola Dinâmico"
+        scene.title = "Nome: Lucas Florindo Souza  |  RA: 11202131388 |  Sistema Massa-Mola Dinâmico"
         scene.width = 900; scene.height = 450; scene.background = color.white
         self.left_wall = box(pos=vector(-2, 0, 0), size=vector(0.1, 0.5, 0.5), color=color.gray(0.6))
         self.right_wall = box(pos=vector(2, 0, 0), size=vector(0.1, 0.5, 0.5), color=color.gray(0.6))
