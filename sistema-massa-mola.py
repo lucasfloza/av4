@@ -4,11 +4,12 @@ import numpy as np
 
 @dataclass
 class Parametros:
-    k: float = 1.0
-    masses: list = None
-    amplitudes: list = None
-    phases: list = None
-    velo: float = 2.0
+    # Parâmetros físicos e de interface
+    k: float = 1.0                    # constante elástica das molas (N/m)
+    masses: list = None               # lista de massas (kg)
+    amplitudes: list = None           # amplitudes iniciais de oscilação (m)
+    phases: list = None               # fases iniciais (rad)
+    velo: float = 2.0                 # velocidade de animação
     slider_range_k: tuple = (0.1, 5.0)
     slider_range_mass: tuple = (1.0, 15.0)
     slider_range_amp: tuple = (0.2, 0.3)
@@ -26,29 +27,37 @@ class SistemaMassaMola:
 
     def __init__(self, params: Parametros):
         self.params = params
-        self.freqs = []
-        self.modos = []
-        self.spheres = []
-        self.springs = []
+        self.freqs = []      # frequências naturais (rad/s)
+        self.modos = []      # modos normais (padrões de vibração)
+        self.spheres = []    # esferas representando as massas
+        self.springs = []    # molas (helix) entre as esferas e paredes
         self.ui_sliders = []
         self.ui_texts = []
-        self.equilibrium = []
+        self.equilibrium = []  # posições de equilíbrio
         self._setup_scene()
         self._build_system()
         self._create_ui()
         self._update_modes()
 
     def calcular_frequencias_modos(self):
+        """
+        Monta as matrizes de massa (M) e rigidez (K),
+        e resolve o problema próprio K·x = ω²·M·x.
+        """
         n = len(self.params.masses)
         M = np.diag(self.params.masses)
         k = self.params.k
         K = np.zeros((n, n))
+        # Montagem de K para molas internas e de parede
         for i in range(n):
             if i > 0:
-                K[i, i] += k; K[i, i-1] -= k
+                K[i, i] += k;   K[i, i-1] -= k
             if i < n-1:
-                K[i, i] += k; K[i, i+1] -= k
-        K[0, 0] += k; K[-1, -1] += k
+                K[i, i] += k;   K[i, i+1] -= k
+        K[0, 0] += k   # mola de parede esquerda
+        K[-1, -1] += k # mola de parede direita
+
+        # eigenvalues/vetores próprios
         w2, v = np.linalg.eig(np.linalg.solve(M, K))
         idx = np.argsort(np.sqrt(w2))
         self.freqs = np.sqrt(w2[idx])
@@ -159,12 +168,32 @@ class SistemaMassaMola:
         self._build_system(); self._create_ui(); self._update_modes()
 
     def _update_modes(self):
-        self.calcular_frequencias_modos(); freqs, modos = self.freqs, self.modos
-        txt = '<b>Frequências (rad/s):</b><br>' + ''.join(f'ω{i+1}={freq:.3f}<br>'
-              for i, freq in enumerate(freqs))
-        txt += '<br><b>Modos Normais:</b><br>' + ''.join(
-            f'Modo {j+1}:[{" ,".join(f"{m:.2f}" for m in modos[:,j])}]<br>'
-            for j in range(len(freqs)))
+        """
+        Atualiza o painel de texto com:
+         1) Frequências naturais (ω, em rad/s)
+         2) Modos normais — cada vetor próprio representa
+            um 'padrão de vibração': quem se move mais, quem se move menos.
+        """
+        self.calcular_frequencias_modos()
+        freqs, modos = self.freqs, self.modos
+
+        # Texto de frequências
+        txt = '<b>Frequências Naturais (ω, rad/s):</b><br>'
+        for i, freq in enumerate(freqs):
+            txt += f'ω{i+1} = {freq:.3f}<br>'
+
+        # Texto de modos normais, com explicação
+        txt += '<br><b>Modos Normais (padrões de vibração):</b><br>'
+        # Para cada modo, mostramos a amplitude relativa de cada massa
+        for j in range(len(freqs)):
+            vetor = modos[:, j]
+            amplitudes = ', '.join(f'{comp:.2f}' for comp in vetor)
+            txt += f'Modo {j+1}: [{amplitudes}]<br>'
+
+        # Comentário adicional explicativo
+        txt += ('<br><i>Em cada modo, todas as massas oscilam à mesma frequência, '
+                'e os números acima indicam "quem se move mais" (valores maiores) '
+                'ou "quem se move menos" (valores menores) nesse padrão.</i>')
         self.info_texto.text = txt
 
     def animate(self):
